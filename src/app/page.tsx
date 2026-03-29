@@ -11,7 +11,7 @@ import { useState } from "react";
 export default function Home() {
   const { lang, products, darkMode, cartOpen, setCartOpen, activePage, checkoutOpen, setCheckoutOpen } = useAppStore();
   const t = T[lang];
-  
+  // Production build trigger for Env Vars
   const [filterCat, setFilterCat] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
