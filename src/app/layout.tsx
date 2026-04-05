@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AuthListener from "@/components/AuthListener";
 import ProductListener from "@/components/ProductListener";
@@ -7,9 +7,17 @@ import BottomNav from "@/components/BottomNav";
 export const metadata: Metadata = {
   title: "Nihao Shop",
   description: "Premium Online Store",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
   themeColor: "#f8f9ff",
 };
+
 
 export default function RootLayout({
   children,
