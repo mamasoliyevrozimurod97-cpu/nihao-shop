@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // Vercel-da qurilayotgan bo'lsa to'liq server bo'ladi, kod orqali Android qilinayotgan bo'lsa export bo'ladi.
+  output: process.env.VERCEL ? undefined : 'export',
   reactStrictMode: true,
   images: {
     unoptimized: true,
