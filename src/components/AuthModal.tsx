@@ -1,7 +1,7 @@
 "use client";
 import { useAppStore } from "@/lib/store";
 import { T } from "@/lib/translations";
-import { X, Mail, Lock } from "lucide-react";
+import { X, Mail, Lock, User } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useState, useEffect } from "react";
 import { fmt } from "@/lib/data";
@@ -53,55 +53,59 @@ function OrderHistory({ userId }: { userId: string }) {
 }
 
 export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { lang, darkMode, user } = useAppStore();
+  const { lang, darkMode, localProfile, setLocalProfile } = useAppStore();
   const t = T[lang];
   const [loading, setLoading] = useState(false);
   
-  const [phone, setPhone] = useState('+998');
-  const [token, setToken] = useState('');
-  const [step, setStep] = useState<'phone' | 'code'>('phone');
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    patronymic: '',
+    phone: '+998',
+    address: ''
+  });
+
+  useEffect(() => {
+    // Load from localStorage on mount or when modal opens
+    if (isOpen) {
+      const saved = localStorage.getItem('nihao_profile');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setFormData(parsed);
+          setLocalProfile(parsed);
+        } catch (e) {
+          console.error("Profile parsing error", e);
+        }
+      }
+    }
+  }, [isOpen, setLocalProfile]);
 
   if (!isOpen) return null;
 
-  const handleSendOTP = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOtp({ phone });
-      if (error) {
-        alert("Xatolik: " + error.message);
-      } else {
-        setStep('code');
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
+    
+    // Validate
+    if (!formData.firstName || !formData.lastName || !formData.patronymic || !formData.phone || !formData.address) {
+      alert(lang === 'uz' ? "Iltimos, barcha maydonlarni to'ldiring" : "Пожалуйста, заполните все поля");
       setLoading(false);
+      return;
     }
+
+    // Save to store and localStorage
+    setLocalProfile(formData);
+    localStorage.setItem('nihao_profile', JSON.stringify(formData));
+    
+    setTimeout(() => {
+      setLoading(false);
+      onClose();
+    }, 500);
   };
 
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms' });
-      if (error) {
-        alert("Xatolik: Kod noto'g'ri yoki vaqti o'tgan. (" + error.message + ")");
-      } else {
-        onClose();
-        setStep('phone');
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    onClose();
-  };
+  const inputCls = `w-full rounded-xl border py-3 px-4 font-bold outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100 ${darkMode ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500' : 'border-gray-200 bg-gray-50'}`;
+  const labelCls = "mb-1.5 block text-[10px] font-black uppercase tracking-widest opacity-60 ml-1";
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -114,95 +118,83 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
           <X size={16} />
         </button>
         
-        {user ? (
-          <div className="flex flex-col h-full max-h-[80vh]">
-            <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-2xl font-black">
-                {lang === 'uz' ? 'Profilingiz' : 'Ваш Профиль'}
-              </h3>
+        <div>
+          <div className="mb-6 flex flex-col items-center text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-100 text-2xl text-red-600">
+              <User size={28} />
             </div>
-            
-            <div className="mb-4 rounded-2xl bg-gray-50 dark:bg-gray-800 p-4">
-              <p className="text-xs opacity-60 mb-1">Tizimga kirdingiz:</p>
-              <p className="font-bold truncate text-red-600">{user.phone || user.email}</p>
-            </div>
-
-            {/* Order History */}
-            <div className="flex-1 overflow-y-auto mb-6 pr-1 custom-scrollbar">
-              <h4 className="mb-3 text-sm font-black uppercase tracking-wider opacity-50">
-                {lang === 'uz' ? 'Buyurtmalar tarixi' : 'История заказов'}
-              </h4>
-              <OrderHistory userId={user.id} />
-            </div>
-
-            <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-100 dark:bg-gray-800 py-3.5 text-sm font-bold text-red-600 transition hover:bg-red-50 dark:hover:bg-red-900/20">
-              🚪 {lang === 'uz' ? 'Tizimdan chiqish' : 'Выйти'}
-            </button>
+            <h3 className="text-2xl font-black">
+              {lang === 'uz' ? 'Ro\'yxatdan o\'tish' : 'Регистрация'}
+            </h3>
+            <p className="mt-1 text-xs opacity-60">
+              {lang === 'uz' ? 'Ma\'lumotlaringizni kiriting' : 'Введите ваши данные'}
+            </p>
           </div>
-        ) : (
-          <div>
-            <div className="mb-8 flex flex-col items-center text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100 text-3xl text-red-600">
-                {step === 'phone' ? <Mail size={32} /> : <Lock size={32} />}
+
+          <form onSubmit={handleSubmit} className="space-y-3.5">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Ism</label>
+                <input 
+                  required 
+                  value={formData.firstName} 
+                  onChange={e => setFormData({...formData, firstName: e.target.value})} 
+                  className={inputCls} 
+                  placeholder="Ali" 
+                />
               </div>
-              <h3 className="text-2xl font-black">
-                {step === 'phone' ? (lang === 'uz' ? 'Kirish' : 'Вход') : (lang === 'uz' ? 'Kodni kiriting' : 'Введите код')}
-              </h3>
-              <p className="mt-2 text-sm opacity-60">
-                {step === 'phone' ? (lang === 'uz' ? 'Telefon raqamingiz orqali tizimga kiring' : 'Войдите через номер телефона') : (lang === 'uz' ? `${phone} raqamiga yuborilgan kodni kiriting` : `Введите kod, yuborilgan na ${phone}`)}
-              </p>
+              <div>
+                <label className={labelCls}>Familiya</label>
+                <input 
+                  required 
+                  value={formData.lastName} 
+                  onChange={e => setFormData({...formData, lastName: e.target.value})} 
+                  className={inputCls} 
+                  placeholder="Valiyev" 
+                />
+              </div>
             </div>
 
-            {step === 'phone' ? (
-              <form onSubmit={handleSendOTP} className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-sm font-bold opacity-80">Telefon raqam</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      required 
-                      type="tel" 
-                      value={phone} 
-                      onChange={e => setPhone(e.target.value)} 
-                      className={`w-full rounded-xl border py-3.5 pl-10 pr-4 font-black outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100 ${darkMode ? 'border-gray-700 bg-gray-800 focus:ring-red-900/30 text-white' : 'border-gray-200 bg-gray-50'}`} 
-                      placeholder="+998901234567" 
-                    />
-                  </div>
-                </div>
+            <div>
+              <label className={labelCls}>Sharif (Otchistva)</label>
+              <input 
+                required 
+                value={formData.patronymic} 
+                onChange={e => setFormData({...formData, patronymic: e.target.value})} 
+                className={inputCls} 
+                placeholder="Ivanovich" 
+              />
+            </div>
 
-                <button disabled={loading} type="submit" className="btn-glow mt-6 w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 py-4 text-center font-black tracking-wide text-white shadow-lg hover:from-red-700 hover:to-red-800 transition disabled:opacity-70">
-                  {loading ? "Kutilmoqda..." : (lang === 'uz' ? 'SMS kod yuborish' : 'Отправить SMS-код')}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyOTP} className="space-y-4">
-                <div>
-                  <label className="mb-1 block text-sm font-bold opacity-80">SMS Kod</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input 
-                      required 
-                      type="text"
-                      maxLength={6} 
-                      value={token} 
-                      onChange={e => setToken(e.target.value)} 
-                      className={`w-full rounded-xl border py-3.5 pl-10 pr-4 font-black tracking-[0.5em] text-center outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100 ${darkMode ? 'border-gray-700 bg-gray-800 focus:ring-red-900/30 text-white' : 'border-gray-200 bg-gray-50'}`} 
-                      placeholder="000000" 
-                    />
-                  </div>
-                </div>
+            <div>
+              <label className={labelCls}>Telefon raqam</label>
+              <input 
+                required 
+                type="tel"
+                value={formData.phone} 
+                onChange={e => setFormData({...formData, phone: e.target.value})} 
+                className={inputCls} 
+                placeholder="+998901234567" 
+              />
+            </div>
 
-                <button disabled={loading} type="submit" className="btn-glow mt-6 w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-green-700 py-4 text-center font-black tracking-wide text-white shadow-lg hover:from-green-700 hover:to-green-800 transition disabled:opacity-70">
-                  {loading ? "Tasdiqlanmoqda..." : (lang === 'uz' ? 'Kodni tasdiqlash' : 'Подтвердить код')}
-                </button>
+            <div>
+              <label className={labelCls}>Yashash manzili</label>
+              <textarea 
+                required 
+                rows={2}
+                value={formData.address} 
+                onChange={e => setFormData({...formData, address: e.target.value})} 
+                className={`${inputCls} resize-none`} 
+                placeholder="Ko'cha, uy raqami, xonadon..." 
+              />
+            </div>
 
-                <button type="button" onClick={() => setStep('phone')} className="w-full text-sm font-bold text-gray-400 hover:text-red-600 transition">
-                  {lang === 'uz' ? 'Raqamni o\'zgartirish' : 'Изменить номер'}
-                </button>
-              </form>
-            )}
-          </div>
-        )}
+            <button disabled={loading} type="submit" className="btn-glow mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 py-3.5 text-center font-black tracking-wide text-white shadow-lg hover:from-red-700 hover:to-red-800 transition disabled:opacity-70">
+              {loading ? "Saqlanmoqda..." : (lang === 'uz' ? 'Profilni saqlash' : 'Сохранить профиль')}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

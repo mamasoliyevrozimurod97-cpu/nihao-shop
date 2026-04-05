@@ -2,10 +2,13 @@ import type { Metadata } from "next";
 import "./globals.css";
 import AuthListener from "@/components/AuthListener";
 import ProductListener from "@/components/ProductListener";
+import BottomNav from "@/components/BottomNav";
 
 export const metadata: Metadata = {
-  title: "NIHAO.UZ — Online Do'kon",
-  description: "O'zbekistonning №1 online do'koni. Butun O'zbekiston po'ylab yetkazib beramiz.",
+  title: "Nihao Shop",
+  description: "Premium Online Store",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover",
+  themeColor: "#f8f9ff",
 };
 
 export default function RootLayout({
@@ -15,11 +18,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="uz">
-      <body className="antialiased font-sans bg-gray-50 text-gray-900">
+      <body className="antialiased font-sans bg-gray-50 text-gray-900 pb-20 md:pb-0">
         <AuthListener />
         <ProductListener />
         {children}
+        <BottomNav />
       </body>
     </html>
   );
 }
+

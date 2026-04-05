@@ -67,14 +67,14 @@ export const fmt = (n: number) => new Intl.NumberFormat("uz-UZ").format(n) + " s
 export const stars = (r: number) => "★".repeat(Math.round(r)) + "☆".repeat(5 - Math.round(r));
 
 // Mapper from DB snake_case to Frontend camelCase
-export const mapProduct = (p: any): Product => ({
+export const mapProduct = (p: any): any => ({
   id: p.id,
   nameUz: p.name_uz,
   nameRu: p.name_ru || p.name_uz,
   nameZh: p.name_zh || p.name_uz,
   nameEn: p.name_en || p.name_uz,
   price: Number(p.price),
-  costPrice: p.cost_price || (Number(p.price) * 0.8), // Fallback if missing
+  costPrice: p.cost_price || (Number(p.price) * 0.8), 
   oldPrice: p.old_price || null,
   category: p.category || 'all',
   rating: p.rating || 5,
@@ -83,5 +83,6 @@ export const mapProduct = (p: any): Product => ({
   discount: p.discount || 0,
   image: p.image,
   isNew: p.is_new || false,
-  isFeatured: p.is_featured || false
+  isFeatured: p.is_featured || false,
+  variants: p.product_variants || [] // Added variants
 });

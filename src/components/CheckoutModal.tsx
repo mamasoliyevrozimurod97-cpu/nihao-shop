@@ -2,9 +2,10 @@
 import { fmt } from "@/lib/data";
 import { useAppStore } from "@/lib/store";
 import { T } from "@/lib/translations";
-import { X, CreditCard, Wallet, MapPin } from "lucide-react";
+import { X, User, Calendar, MapPin, Phone, CreditCard, Wallet, ChevronRight, ShieldCheck, Navigation, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { Browser } from "@capacitor/browser";
 
 export default function CheckoutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { lang, cart, clearCart, darkMode, deliveryConfig, user } = useAppStore();
@@ -12,9 +13,11 @@ export default function CheckoutModal({ isOpen, onClose }: { isOpen: boolean; on
   const subTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
 
   const [form, setForm] = useState({ name: "", phone: "", region: "", address: "" });
+  const [profile, setProfile] = useState({ firstName: "", lastName: "", patronymic: "", homeAddress: "", homePhone: "" });
   const [regions, setRegions] = useState<any[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "click" | "payme">("card");
+  const [paymentMethod, setPaymentMethod] = useState<"card">("card");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveProfile, setSaveProfile] = useState(true);
 
   useEffect(() => {
     const fetchRegions = async () => {
@@ -23,11 +26,8 @@ export default function CheckoutModal({ isOpen, onClose }: { isOpen: boolean; on
         if (data && data.length > 0) {
           setRegions(data);
           if (!form.region) setForm(prev => ({ ...prev, region: data[0].name }));
-        } else {
-          throw new Error('No regions found');
-        }
-      } catch (err) {
-        // Fallback to translations if DB is empty, fails, or doesn't exist
+        } else throw new Error('No regions found');
+      } catch {
         const fallback = t.viloyatlar.map((v, i) => ({ id: i, name: v, price: deliveryConfig.farPrice }));
         setRegions(fallback);
         if (!form.region) setForm(prev => ({ ...prev, region: fallback[0]?.name || "" }));
@@ -36,129 +36,218 @@ export default function CheckoutModal({ isOpen, onClose }: { isOpen: boolean; on
     if (isOpen) fetchRegions();
   }, [isOpen, t.viloyatlar]);
 
-  // Delivery Logic
   const selectedRegion = regions.find(r => r.name === form.region);
   const baseDeliveryFee = selectedRegion ? Number(selectedRegion.price) : (deliveryConfig.farPrice || 45000);
   const deliveryFee = subTotal >= deliveryConfig.freeThreshold ? 0 : baseDeliveryFee;
   const total = subTotal + deliveryFee;
+
+  const fullName = `${profile.firstName} ${profile.lastName}`.trim() || form.name;
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
+    // Use profile name if provided
+    const orderName = fullName || form.name;
+    const orderPhone = profile.homePhone || form.phone;
+    const orderAddress = profile.homeAddress || form.address;
+
     try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          items: cart,
-          subTotal,
-          deliveryFee,
-          total,
-          paymentMethod,
-          lang,
-          userId: user?.id
-        })
-      });
-      const data = await res.json();
-      
-      if(data.ok && data.botLink) {
-        clearCart();
-        onClose();
-        // Redirect to Telegram Bot for payment
-        window.location.href = data.botLink;
-      } else {
-        alert("Xatolik yuz berdi. Iltimos qayta urinib ko'ring.");
+      const { data: prof } = await supabase.from('profiles').select('is_blocked').eq('phone', orderPhone).single();
+      if (prof?.is_blocked) {
+        alert("Xatolik: Ushbu telefon raqami bloklangan. Iltimos, ma'muriyat bilan bog'laning.");
+        setIsSubmitting(false);
+        return;
       }
-    } catch(err) {
+
+      const { data, error } = await supabase.from('orders').insert([{
+        name: orderName,
+        phone: orderPhone,
+        region: form.region,
+        address: orderAddress,
+        items: cart,
+        sub_total: subTotal,
+        delivery_fee: deliveryFee,
+        total: total,
+        status: 'pending',
+        payment_method: paymentMethod,
+        lang: lang
+      }]).select('id').single();
+
+      if (error) throw error;
+
+      const orderId = data.id;
+      const BOT_USERNAME = 'nixouo_bot';
+      const botLink = `https://t.me/${BOT_USERNAME}?start=PAY_${orderId}_${paymentMethod}`;
+
+      clearCart();
+      onClose();
+      await Browser.open({ url: botLink });
+    } catch (err) {
+      console.error('Checkout error:', err);
       alert("Xatolik yuz berdi. Iltimos qayta urinib ko'ring.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const dm = darkMode;
+  const inputCls = `w-full rounded-xl border p-3 font-medium outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100 ${dm ? 'border-gray-700 bg-gray-800 focus:ring-red-900/30 text-white' : 'border-gray-200 bg-gray-50'}`;
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
-      
-      {/* Modal */}
-      <div className={`relative w-full max-w-lg overflow-hidden rounded-[2rem] shadow-2xl ${darkMode ? 'bg-gray-900 text-gray-100' : 'bg-white text-gray-900'} animate-in fade-in zoom-in-95 duration-200`}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      <div className={`relative w-full max-w-lg overflow-hidden rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl ${dm ? 'bg-gray-950 text-gray-100' : 'bg-white text-gray-900'} animate-in fade-in slide-in-from-bottom sm:zoom-in-95 duration-300 flex flex-col max-h-[95vh]`}>
         
-        {/* Header */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-red-600 to-red-800 p-6 text-white">
-          <div>
-            <h2 className="text-2xl font-black">{t.checkout}</h2>
-            <div className="mt-2 text-sm font-medium text-red-100 flex flex-col">
-              <span className="opacity-80">Mahsulotlar: {fmt(subTotal)}</span>
-              <span className="opacity-80">Yetkazib berish: {deliveryFee === 0 ? "Bepul" : fmt(deliveryFee)}</span>
-              <span className="mt-1 font-bold">Jami: <span className="text-xl text-white">{fmt(total)}</span></span>
-            </div>
+        {/* HEADER */}
+        <div className={`shrink-0 p-6 border-b flex items-center justify-between ${dm ? 'border-gray-800 bg-gray-900' : 'border-gray-50 bg-white'}`}>
+          <div className="flex items-center gap-3">
+             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-600 text-white shadow-lg">
+                <ShoppingCart size={20} />
+             </div>
+             <div>
+                <h2 className="text-lg font-black">{t.checkout}</h2>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{fmt(total)}</p>
+             </div>
           </div>
-          <button onClick={onClose} className="rounded-full bg-white/10 p-2 hover:bg-white/20 transition self-start">
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
             <X size={20} />
           </button>
         </div>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-bold opacity-80">{t.name}</label>
-              <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className={`w-full rounded-xl border p-3 font-medium outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100 ${darkMode ? 'border-gray-700 bg-gray-800 focus:ring-red-900/30' : 'border-gray-200 bg-gray-50'}`} placeholder="Falonchi Pistonchiyev" />
-            </div>
-            
-            <div>
-              <label className="mb-1 block text-sm font-bold opacity-80">{t.phone}</label>
-              <input required type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className={`w-full rounded-xl border p-3 font-medium outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100 ${darkMode ? 'border-gray-700 bg-gray-800 focus:ring-red-900/30' : 'border-gray-200 bg-gray-50'}`} placeholder="+998 90 123 45 67" />
-            </div>
+        {/* MODAL BODY (SCROLLABLE) */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
+          
+          {/* Main Form Fields */}
+          <section className="space-y-4">
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Ism (Majburiy)</label>
+                   <input 
+                     required
+                     value={profile.firstName}
+                     onChange={e => setProfile({...profile, firstName: e.target.value})}
+                     className={inputCls}
+                     placeholder="Abdulloh"
+                   />
+                </div>
+                <div className="space-y-1.5">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Familiya (Majburiy)</label>
+                   <input 
+                     required
+                     value={profile.lastName}
+                     onChange={e => setProfile({...profile, lastName: e.target.value})}
+                     className={inputCls}
+                     placeholder="Karimov"
+                   />
+                </div>
+             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-bold opacity-80">{t.region}</label>
-                <select value={form.region} onChange={e => setForm({...form, region: e.target.value})} className={`w-full appearance-none rounded-xl border p-3 font-medium outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100 ${darkMode ? 'border-gray-700 bg-gray-800 focus:ring-red-900/30' : 'border-gray-200 bg-gray-50'}`}>
-                  {regions.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-bold opacity-80">{t.deliveryAddress}</label>
-                <input required value={form.address} onChange={e => setForm({...form, address: e.target.value})} className={`w-full rounded-xl border p-3 font-medium outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100 ${darkMode ? 'border-gray-700 bg-gray-800 focus:ring-red-900/30' : 'border-gray-200 bg-gray-50'}`} placeholder="Tuman, ko'cha, uy" />
-              </div>
-            </div>
+             <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Sharif (Otchistva — Majburiy)</label>
+                <input 
+                  required
+                  value={profile.patronymic || ''}
+                  onChange={e => setProfile({...profile, patronymic: e.target.value})}
+                  className={inputCls}
+                  placeholder="Masalan: Abdulloh o'g'li"
+                />
+             </div>
 
-            <div className="pt-2">
-              <label className="mb-3 block text-sm font-bold opacity-80">{t.payWith}</label>
-              <div className="grid grid-cols-3 gap-3">
-                <button type="button" onClick={() => setPaymentMethod("click")} className={`flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition ${paymentMethod === "click" ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 dark:border-gray-700'}`}>
-                  <Wallet size={24} className={paymentMethod === 'click' ? 'text-blue-500' : 'text-gray-400'} />
-                  <span className="text-xs font-black tracking-wide">CLICK</span>
-                </button>
-                <button type="button" onClick={() => setPaymentMethod("payme")} className={`flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition ${paymentMethod === "payme" ? 'border-cyan-500 bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' : 'border-gray-200 hover:border-cyan-200 hover:bg-gray-50 dark:border-gray-700'}`}>
-                  <Wallet size={24} className={paymentMethod === 'payme' ? 'text-cyan-500' : 'text-gray-400'} />
-                  <span className="text-xs font-black tracking-wide">PAYME</span>
-                </button>
-                <button type="button" onClick={() => setPaymentMethod("card")} className={`flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition ${paymentMethod === "card" ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'border-gray-200 hover:border-red-200 hover:bg-gray-50 dark:border-gray-700'}`}>
-                  <CreditCard size={24} className={paymentMethod === 'card' ? 'text-red-500' : 'text-gray-400'} />
-                  <span className="text-xs font-black tracking-wide">{t.cardPay}</span>
-                </button>
-              </div>
-            </div>
+             <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Telefon raqam (Majburiy)</label>
+                <input 
+                  required
+                  type="tel"
+                  value={profile.homePhone}
+                  onChange={e => setProfile({...profile, homePhone: e.target.value})}
+                  className={inputCls}
+                  placeholder="+998 90 123 45 67"
+                />
+             </div>
+
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Hudud</label>
+                   <select 
+                     value={form.region} 
+                     onChange={e => setForm({...form, region: e.target.value})} 
+                     className={inputCls}
+                   >
+                     {regions.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                   </select>
+                </div>
+                <div className="space-y-1.5">
+                   <div className="flex items-center justify-between ml-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Manzil (Majburiy)</label>
+                      <button 
+                        type="button"
+                        onClick={async () => {
+                          if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(async (pos) => {
+                              const { latitude, longitude } = pos.coords;
+                              try {
+                                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                                const data = await res.json();
+                                if (data.display_name) setProfile({...profile, homeAddress: data.display_name});
+                              } catch (e) { alert("Xatolik bo'ldi."); }
+                            });
+                          }
+                        }}
+                        className="text-[9px] font-black text-red-600 uppercase flex items-center gap-1"
+                      >
+                         <Navigation size={10} /> Lokatsiya
+                      </button>
+                   </div>
+                   <input 
+                     required
+                     value={profile.homeAddress}
+                     onChange={e => setProfile({...profile, homeAddress: e.target.value})}
+                     className={inputCls}
+                     placeholder="Ko'cha, uy..."
+                   />
+                </div>
+             </div>
+          </section>
+
+          {/* Payment Section */}
+          <section className="space-y-3">
+             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">To'lov usuli</label>
+             <div className="grid grid-cols-1">
+                <div className="flex items-center justify-center gap-3 rounded-2xl border-2 border-red-500 bg-red-50 p-4 text-red-700 font-black text-xs uppercase tracking-widest">
+                   <CreditCard size={20} />
+                   {t.cardPay}
+                </div>
+             </div>
+          </section>
+
+          {/* Safety Badge */}
+          <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 dark:bg-emerald-900/10 p-4 text-emerald-600 dark:text-emerald-400">
+             <ShieldCheck size={20} />
+             <p className="text-[10px] font-black uppercase tracking-widest leading-tight">
+                Ma'lumotlar xavfsiz saqlanadi va faqat buyurtma uchun ishlatiladi.
+             </p>
           </div>
+        </div>
 
-          <button disabled={isSubmitting} type="submit" className="btn-glow mt-8 w-full rounded-2xl bg-gradient-to-r from-red-600 to-red-800 py-4 text-center text-lg font-black text-white shadow-xl disabled:opacity-70 disabled:shadow-none">
+        {/* STICKY FOOTER ACTION */}
+        <div className={`shrink-0 p-6 border-t ${dm ? 'border-gray-800 bg-gray-900' : 'border-gray-50 bg-white'}`}>
+          <button 
+            disabled={isSubmitting} 
+            onClick={handleSubmit}
+            className="w-full rounded-2xl bg-gradient-to-r from-red-600 to-red-700 py-5 text-center text-sm font-black uppercase tracking-widest text-white shadow-2xl shadow-red-500/30 transition hover:from-red-500 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+          >
             {isSubmitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Bajarilmoqda...
-              </span>
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
             ) : (
-              t.orderNow
+              <>{t.orderNow} <ChevronRight size={18} /></>
             )}
           </button>
-        </form>
+        </div>
       </div>
     </div>
   );

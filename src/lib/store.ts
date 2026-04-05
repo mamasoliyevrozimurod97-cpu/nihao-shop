@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { initialProducts, Product } from './data';
 import { Language } from './translations';
 
+interface LocalProfile {
+  firstName: string;
+  lastName: string;
+  patronymic: string;
+  phone: string;
+  address: string;
+}
+
 interface AppState {
   lang: Language;
   setLang: (lang: Language) => void;
@@ -24,8 +32,10 @@ interface AppState {
   setActivePage: (page: string) => void;
   authOpen: boolean;
   setAuthOpen: (open: boolean) => void;
-  user: any;
+  user: any | undefined;
   setUser: (user: any) => void;
+  localProfile: LocalProfile | undefined;
+  setLocalProfile: (profile: LocalProfile | undefined) => void;
   // Delivery settings
   deliveryConfig: { nearbyPrice: number, farPrice: number, freeThreshold: number };
   setDeliveryConfig: (config: any) => void;
@@ -69,8 +79,10 @@ export const useAppStore = create<AppState>((set) => ({
   setActivePage: (activePage) => set({ activePage }),
   authOpen: false,
   setAuthOpen: (authOpen) => set({ authOpen }),
-  user: null,
+  user: undefined,
   setUser: (user) => set({ user }),
+  localProfile: undefined,
+  setLocalProfile: (localProfile) => set({ localProfile }),
   deliveryConfig: { nearbyPrice: 50000, farPrice: 100000, freeThreshold: 1000000 },
   setDeliveryConfig: (deliveryConfig) => set({ deliveryConfig }),
 }));

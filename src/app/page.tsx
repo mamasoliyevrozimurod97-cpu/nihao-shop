@@ -3,102 +3,217 @@ import Header from "@/components/Header";
 import ProductCard from "@/components/ProductCard";
 import Cart from "@/components/Cart";
 import CheckoutModal from "@/components/CheckoutModal";
+import ProductModal from "@/components/ProductModal";
 import { useAppStore } from "@/lib/store";
-import { cats } from "@/lib/data";
+import { cats, catIcon, catLabels } from "@/lib/data";
 import { T } from "@/lib/translations";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Sparkles, Zap, ShoppingBag, ArrowRight, TrendingUp, Shield, Truck, HeartHandshake, MapPin, Navigation } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { fmt } from "@/lib/data";
 
 export default function Home() {
-  const { lang, products, darkMode, cartOpen, setCartOpen, activePage, checkoutOpen, setCheckoutOpen } = useAppStore();
+  const { lang, products, darkMode, cartOpen, setCartOpen, activePage, setActivePage, checkoutOpen, setCheckoutOpen } = useAppStore();
   const t = T[lang];
-  // Production build trigger for Env Vars
   const [filterCat, setFilterCat] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [banner, setBanner] = useState<any>(null);
+  const [storeInfo, setStoreInfo] = useState<any>(null);
 
-  const catIcon: Record<string, string> = {all:"🛍️",electronics:"📱",clothing:"👗",home_goods:"🏠",food:"🥗",sports:"⚽",beauty:"💄",toys:"🧸",construction:"🔨"};
+  const displayProducts = useMemo(() => {
+    return products.filter((p: any) => {
+      const q = searchQuery.toLowerCase();
+      const queryMatch = !searchQuery ||
+        p.nameUz.toLowerCase().includes(q) ||
+        p.nameRu.toLowerCase().includes(q) ||
+        p.nameEn.toLowerCase().includes(q);
+      if (!queryMatch) return false;
+      if (filterCat !== 'all' && p.category !== filterCat) return false;
+      if (activePage === 'discounts' && !(p.discount > 0)) return false;
+      return true;
+    });
+  }, [products, searchQuery, filterCat, activePage]);
 
-  // Active page logic
-  const displayProducts = products.filter(p => {
-    const q = searchQuery.toLowerCase();
-    const queryMatch = !searchQuery || 
-      p.nameUz.toLowerCase().includes(q) ||
-      p.nameRu.toLowerCase().includes(q) ||
-      p.nameZh.toLowerCase().includes(q) ||
-      p.nameEn.toLowerCase().includes(q);
-    
-    if (!queryMatch) return false;
-    if (filterCat !== 'all' && p.category !== filterCat) return false;
-    if (activePage === 'discounts' && !(p.discount > 0)) return false;
-    return true;
-  });
+  useEffect(() => {
+    supabase.from('banners').select('*').eq('is_active', true).limit(1).single()
+      .then(({ data }) => { if (data) setBanner(data); });
 
-  const featured = products.filter(p => p.isFeatured);
-  const newArrivals = products.filter(p => p.isNew);
+    supabase.from('store_settings').select('*').eq('key', 'delivery_config').single()
+      .then(({ data }) => { if (data && data.value) setStoreInfo(data.value); });
+  }, []);
+
+  const featured = useMemo(() => products.filter(p => p.isFeatured).slice(0, 4), [products]);
+  const dm = darkMode;
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-950 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
-      {/* Header */}
+    <div className={`min-h-screen transition-colors duration-500 font-sans selection:bg-red-200 selection:text-red-900 ${dm ? 'bg-gray-950 text-gray-100' : 'bg-[#f8f9ff] text-gray-900'}`}>
       <Header />
-
       <Cart isOpen={cartOpen} onClose={() => setCartOpen(false)} />
       <CheckoutModal isOpen={checkoutOpen} onClose={() => setCheckoutOpen(false)} />
+      <ProductModal
+        p={selectedProduct}
+        isOpen={!!selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        onSelectProduct={(p) => setSelectedProduct(p)}
+      />
 
-      <main className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
-        
+      <main className="mx-auto max-w-7xl px-4 py-8 md:px-8">
+
         {activePage === 'home' && (
           <>
-            {/* Hero Section */}
-            <section className="relative mb-12 overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-red-600 via-red-500 to-orange-500 px-8 py-14 text-white shadow-2xl md:px-16 md:py-20">
-              <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white/10 blur-3xl"></div>
-              <div className="absolute -bottom-32 left-10 h-80 w-80 rounded-full bg-black/10 blur-3xl"></div>
-              
-              <div className="relative z-10 max-w-xl">
-                <div className="mb-6 inline-flex rounded-full bg-white/20 px-4 py-1.5 text-xs font-black tracking-widest backdrop-blur-sm">
-                  🔥 {t.bestSellers} · {t.newArrivals}
+            {/* ===== HERO SECTION ===== */}
+            <section className="relative mb-16 mt-4 overflow-hidden rounded-[2.5rem] shadow-2xl">
+              {/* Background */}
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-red-950" />
+              <div className="absolute -right-32 -top-32 hidden md:block h-[500px] w-[500px] rounded-full bg-red-600/15 blur-[100px]" />
+              <div className="absolute -bottom-20 left-1/3 hidden md:block h-[300px] w-[300px] rounded-full bg-blue-600/10 blur-[80px]" />
+
+              {/* Decorative grid */}
+              <div className="absolute inset-0 opacity-5"
+                style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '30px 30px' }}
+              />
+
+              <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center px-8 py-16 md:px-16 md:py-24">
+                {/* Left */}
+                <div className="space-y-7 animate-in fade-in slide-in-from-left-8 duration-700">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest backdrop-blur-md text-white">
+                    <Sparkles size={11} className="text-yellow-400 fill-yellow-400" />
+                    {banner?.[`product_tag_${lang}`] || t.newArrivals}
+                    <span className="ml-1 h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                  </div>
+
+                  <h1 className="text-5xl md:text-7xl font-black leading-[0.9] tracking-tighter text-white">
+                    {(banner?.[`title_${lang}`] || "NIHAO").split(' ')[0]}{' '}
+                    <span className="bg-gradient-to-r from-red-500 to-orange-400 bg-clip-text text-transparent">
+                      {(banner?.[`title_${lang}`] || "SHOP").split(' ').slice(1).join(' ') || 'SHOP'}
+                    </span>
+                  </h1>
+
+                  <p className="max-w-md text-base font-bold text-slate-400 leading-relaxed">
+                    {banner?.[`subtitle_${lang}`] || t.hero2}
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-4">
+                    <button
+                      onClick={() => { setActivePage('catalog'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      className="group flex items-center gap-2.5 rounded-2xl bg-gradient-to-r from-red-600 to-red-700 px-8 py-4 text-sm font-black text-white shadow-2xl shadow-red-600/30 transition-all hover:shadow-red-500/40 hover:scale-105 active:scale-95"
+                    >
+                      {banner?.[`button_text_${lang}`] || t.shopNow}
+                      <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+                    </button>
+
+                    <div className="flex -space-x-2.5">
+                      {["🧑", "👩", "👨", "🧕"].map((e, i) => (
+                        <div key={i} className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-slate-900 bg-slate-800 text-sm shadow">{e}</div>
+                      ))}
+                      <div className="flex items-center gap-1.5 pl-4 text-xs font-bold text-slate-400">
+                        <TrendingUp size={12} className="text-green-400" />
+                        <span className="text-white font-black">10k+</span> xaridor
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="flex gap-8 pt-2">
+                    {[['500+', "Mahsulot"], ['98%', "Mamnun xaridorlar"], ['24/7', "Qo'llab-quvvatlash"]].map(([v, l]) => (
+                      <div key={l}>
+                        <div className="text-2xl font-black text-white">{v}</div>
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{l}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <h1 className="mb-4 text-5xl font-black leading-tight tracking-tight drop-shadow-md md:text-7xl">
-                  {t.hero1}
-                </h1>
-                <p className="mb-8 text-xl font-bold text-red-100 drop-shadow md:text-2xl">
-                  {t.hero2}
-                </p>
-                <div className="flex flex-wrap items-center gap-4">
-                  <button onClick={() => {
-                      window.scrollTo({top: 800, behavior: 'smooth'});
-                  }} className="btn-glow flex items-center justify-center rounded-2xl bg-white px-8 py-4 text-sm font-black text-red-700 shadow-xl transition-transform hover:-translate-y-1">
-                    {t.shopNow} →
-                  </button>
-                  <button className="flex items-center justify-center rounded-2xl border-2 border-white/40 bg-white/10 px-8 py-4 text-sm font-bold backdrop-blur-sm transition-colors hover:bg-white/20">
-                    ⭐ {t.featured}
-                  </button>
+
+                {/* Right: product showcase */}
+                <div className="hidden lg:flex relative items-center justify-center animate-in fade-in zoom-in duration-700 delay-200">
+                  <div className="relative h-[26rem] w-[26rem]">
+                    <div className="absolute inset-0 rounded-[3rem] bg-gradient-to-tr from-white/5 to-white/10 border border-white/10 rotate-3 overflow-hidden group">
+                      <div className="absolute inset-0 bg-cover bg-center opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700"
+                        style={{ backgroundImage: `url(${banner?.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80'})` }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+                      <div className="absolute bottom-8 left-8 right-8">
+                        <p className="text-2xl font-black italic tracking-tighter uppercase text-white mb-1.5">{banner?.[`product_name_${lang}`] || 'Smart Watch Pro'}</p>
+                        <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">{banner?.[`product_tag_${lang}`] || 'Eksklyuziv taklif'}</p>
+                      </div>
+                    </div>
+
+                    {/* Floating badge */}
+                    <div className="absolute -right-6 top-8 rounded-2xl bg-white px-4 py-3 shadow-2xl border border-gray-100">
+                      <div className="text-xs font-black text-slate-900">Eng mashhur</div>
+                      <div className="text-[10px] text-slate-400 font-bold">Bugun 43 ta sotildi</div>
+                    </div>
+
+                    <div className="absolute -left-6 bottom-16 rounded-2xl bg-red-600 px-4 py-3 shadow-2xl text-white">
+                      <div className="text-xs font-black">-40% Chegirma</div>
+                      <div className="text-[10px] opacity-80 font-bold">Bugun uchun</div>
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-8 flex items-center gap-2 text-sm font-semibold opacity-90">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs">🚚</span>
-                  {t.hero3}
-                </div>
-              </div>
-              <div className="absolute -bottom-10 -right-10 select-none text-[12rem] opacity-[0.07]">
-                🛒
               </div>
             </section>
 
-            {/* Categories */}
-            <section className="mb-16">
-              <div className="mb-6 flex items-center justify-between">
-                <h2 className="section-title text-2xl font-black">🗂️ {t.categories}</h2>
+            {/* ===== TRUST BADGES ===== */}
+            <section className={`mb-14 grid grid-cols-2 md:grid-cols-4 gap-4`}>
+              {[
+                { icon: <Truck size={22} />, title: "Tez Yetkazib Berish", sub: "1-3 ish kuni ichida" },
+                { icon: <Shield size={22} />, title: "100% Kafolat", sub: "Sifatli mahsulotlar" },
+                { icon: <HeartHandshake size={22} />, title: "24/7 Yordam", sub: "Har doim yordamda" },
+                { icon: <Zap size={22} />, title: "Tez Buyurtma", sub: "Telegram orqali" },
+              ].map((b, i) => (
+                <div key={i} className={`flex items-center gap-4 rounded-2xl p-5 border transition-all hover:border-red-200 hover:shadow-lg ${dm ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">{b.icon}</div>
+                  <div>
+                    <div className={`text-xs font-black ${dm ? 'text-white' : 'text-slate-800'}`}>{b.title}</div>
+                    <div className="text-[10px] font-bold text-slate-400 mt-0.5">{b.sub}</div>
+                  </div>
+                </div>
+              ))}
+            </section>
+
+            {/* ===== FEATURED ===== */}
+            {featured.length > 0 && (
+              <section className="mb-16">
+                <div className="mb-8 flex items-end justify-between">
+                  <div>
+                    <h2 className={`text-3xl font-black tracking-tight flex items-center gap-2.5 ${dm ? 'text-white' : 'text-slate-900'}`}>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-400/30">
+                        <Zap size={18} fill="white" />
+                      </span>
+                      {t.featured}
+                    </h2>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">Eng ko'p sotilayotgan mahsulotlar</p>
+                  </div>
+                  <button
+                    onClick={() => setActivePage('catalog')}
+                    className="flex items-center gap-1.5 text-sm font-black text-red-600 hover:underline">
+                    Hammasi <ArrowRight size={14} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+                  {featured.map(p => <ProductCard key={p.id} p={p} onOpen={() => setSelectedProduct(p)} />)}
+                </div>
+              </section>
+            )}
+
+            {/* ===== CATEGORIES ===== */}
+            <section className={`mb-16 rounded-[2.5rem] p-10 border ${dm ? 'bg-gray-900/80 border-gray-800' : 'bg-white border-gray-100 shadow-xl shadow-slate-100/50'}`}>
+              <div className="mb-8 text-center">
+                <h2 className={`text-3xl font-black tracking-tight uppercase ${dm ? 'text-white' : 'text-slate-900'}`}>Kategoriyalar</h2>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">Sevimli toifani tanlang</p>
               </div>
-              <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 hide-scrollbar">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {cats.slice(1).map(c => (
                   <button
                     key={c}
-                    onClick={() => setFilterCat(c)}
-                    className={`card-hover group flex min-w-[110px] shrink-0 snap-center flex-col items-center gap-3 rounded-3xl border p-5 transition-all
-                      ${filterCat === c 
-                        ? 'border-red-500 bg-red-50 text-red-700 shadow-md ring-2 ring-red-500/20' 
-                        : darkMode ? 'border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700' : 'border-gray-200 bg-white text-gray-600 hover:border-red-200 hover:bg-red-50/50'}`}
+                    onClick={() => { setFilterCat(c); setActivePage('catalog'); }}
+                    className={`group flex flex-col items-center gap-3 rounded-2xl p-6 border transition-all duration-300 hover:-translate-y-1.5 hover:border-red-400 hover:shadow-xl hover:shadow-red-500/10 ${dm ? 'bg-gray-800 border-gray-700 hover:bg-gray-750' : 'bg-gray-50 border-gray-100 hover:bg-white'}`}
                   >
-                    <span className="text-4xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">{catIcon[c]}</span>
-                    <span className="text-center text-[11px] font-black uppercase tracking-wider">{t[c as keyof typeof t] || c}</span>
+                    <div className="text-4xl transition-transform duration-500 group-hover:scale-125 group-hover:rotate-6">{catIcon[c]}</div>
+                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] transition-colors group-hover:text-red-600 ${dm ? 'text-gray-400' : 'text-slate-500'}`}>
+                      {catLabels[c] || c}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -106,48 +221,82 @@ export default function Home() {
           </>
         )}
 
-        {(activePage === 'catalog' || activePage === 'discounts' || filterCat !== 'all' || activePage === 'home') && (
-          <section className="mb-16">
-            {/* Search Bar */}
-            <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div className="relative w-full md:max-w-md">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none opacity-40">
-                  🔍
+        {/* ===== CATALOG / DISCOUNTS ===== */}
+        {(activePage === 'catalog' || activePage === 'discounts' || filterCat !== 'all') && (
+          <section className="mb-20 pt-4">
+            <div className="mb-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className={`text-4xl font-black tracking-tighter uppercase ${dm ? 'text-white' : 'text-slate-900'}`}>
+                  {activePage === 'discounts' ? t.discounts : filterCat !== 'all' ? catLabels[filterCat] : t.catalog}
+                </h2>
+                <div className="mt-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <ShoppingBag size={12} className="text-red-500" />
+                  {displayProducts.length} ta mahsulot topildi
                 </div>
-                <input 
-                  type="text" 
-                  placeholder={lang === 'uz' ? "Mahsulotlarni qidirish..." : lang === 'ru' ? "Поиск продуктов..." : "Search products..."}
-                  className={`w-full rounded-2xl border-2 py-4 pl-12 pr-4 font-bold outline-none transition-all duration-300
-                    ${darkMode ? 'border-gray-800 bg-gray-900 focus:border-red-500 focus:ring-4 focus:ring-red-500/10' : 'border-gray-100 bg-white focus:border-red-500 focus:ring-4 focus:ring-red-500/10 shadow-sm'}`}
+              </div>
+
+              <div className="relative w-full md:max-w-sm">
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+                <input
+                  type="text"
+                  placeholder={t.search}
+                  className={`w-full rounded-2xl border-2 py-4 pl-12 pr-5 text-sm font-bold transition-all outline-none focus:border-red-500 focus:ring-4 focus:ring-red-500/10 ${dm ? 'border-gray-700 bg-gray-900 text-white placeholder-gray-500' : 'border-slate-100 bg-white text-gray-900 placeholder-slate-400 shadow-lg'}`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              
-              <div className="flex items-center gap-2 text-sm font-black uppercase tracking-widest opacity-40">
-                {displayProducts.length} {t.products}
-              </div>
             </div>
 
-            <div className="mb-8 flex items-end justify-between border-b border-gray-200 pb-4 dark:border-gray-800">
-              <h2 className="section-title text-2xl font-black">
-                {activePage === 'discounts' ? `🔥 ${t.discounts}` : activePage === 'catalog' ? `📦 ${t.catalog}` : filterCat !== 'all' ? `🗂️ ${t[filterCat as keyof typeof t] || filterCat}` : `⭐ ${t.featured}`}
-              </h2>
+            <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4 xl:gap-6">
+              {displayProducts.map(p => <ProductCard key={p.id} p={p} onOpen={() => setSelectedProduct(p)} />)}
             </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:gap-6">
-              {displayProducts.map(p => (
-                <ProductCard key={p.id} p={p} />
-              ))}
-            </div>
+
+            {displayProducts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-40 text-center">
+                <div className="text-7xl mb-6">🔍</div>
+                <p className="text-2xl font-black uppercase tracking-tighter text-slate-300">Mahsulot topilmadi</p>
+                <p className="text-sm text-slate-400 mt-2 font-bold">Boshqa so'z bilan qidiring</p>
+              </div>
+            )}
           </section>
         )}
-
       </main>
-      
+
       {/* Footer */}
-      <footer className={`mt-auto border-t py-12 text-center text-sm ${darkMode ? 'border-gray-800 bg-gray-950 text-gray-500' : 'border-gray-200 bg-white text-gray-500'}`}>
-        <p className="font-bold">© 2026 {t.siteName}. Barcha huquqlar himoyalangan.</p>
-        <p className="mt-2 text-xs opacity-70">Powered by Next.js & Tailwind CSS</p>
+      <footer className={`mt-10 border-t ${dm ? 'border-gray-800 bg-gray-950 text-gray-500' : 'border-gray-100 bg-white text-slate-400'}`}>
+        <div className="mx-auto max-w-7xl px-8 py-16 flex flex-col md:flex-row justify-between items-center gap-10">
+          <div>
+            <h3 className={`text-2xl font-black tracking-tighter italic ${dm ? 'text-white' : 'text-slate-900'}`}>
+              NIHAO <span className="text-red-600">SHOP</span>
+              <span className="ml-2 text-[11px] normal-case font-bold text-slate-400 not-italic">v2.0</span>
+            </h3>
+            <p className="text-sm font-bold mt-1">Professional darajadagi onlayn do'kon.</p>
+            
+            {storeInfo?.store_address && (
+              <div className="mt-4 flex flex-col items-center md:items-start gap-2">
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  <MapPin size={12} className="text-red-500" /> {storeInfo.store_address}
+                </div>
+                {storeInfo.store_maps_url && (
+                  <a 
+                    href={storeInfo.store_maps_url} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-gray-900 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white hover:bg-red-600 hover:text-white transition"
+                  >
+                    <Navigation size={12} /> Xaritada ko'rish
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex gap-8 text-[10px] font-black uppercase tracking-widest">
+            <a href="#" className="hover:text-red-600 transition">Telegram</a>
+            <a href="#" className="hover:text-red-600 transition">Instagram</a>
+            <a href="#" className="hover:text-red-600 transition">Bog'lanish</a>
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-widest">© 2026 Barcha huquqlar himoyalangan.</p>
+        </div>
       </footer>
     </div>
   );
