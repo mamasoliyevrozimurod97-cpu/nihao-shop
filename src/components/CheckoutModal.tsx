@@ -1,4 +1,5 @@
 "use client";
+// Final mobile-optimized version
 import { fmt } from "@/lib/data";
 import { useAppStore } from "@/lib/store";
 import { T } from "@/lib/translations";
