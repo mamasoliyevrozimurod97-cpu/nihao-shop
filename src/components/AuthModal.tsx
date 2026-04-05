@@ -110,7 +110,6 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
             <div className="mb-6 rounded-2xl bg-gray-50 dark:bg-gray-800 p-4">
               <p className="text-xs opacity-60 mb-1">Ma'lumotlar saqlandi:</p>
               <p className="font-bold truncate text-red-600 text-lg">{localProfile.firstName} {localProfile.lastName}</p>
-              <p className="text-sm opacity-80">{localProfile.phone}</p>
             </div>
 
             <button 
