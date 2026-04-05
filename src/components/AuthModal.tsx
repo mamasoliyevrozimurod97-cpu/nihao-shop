@@ -33,7 +33,7 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
@@ -41,6 +41,38 @@ export default function AuthModal({ isOpen, onClose }: { isOpen: boolean; onClos
       alert(lang === 'uz' ? "Iltimos, barcha maydonlarni to'ldiring" : "Пожалуйста, заполните все поля");
       setLoading(false);
       return;
+    }
+
+    // Platformaga (Database) saqlash
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      
+      // Ism va familiyani birlashtirib saqlaymiz (Admin panel o'qishi uchun)
+      const fullName = `${formData.firstName} ${formData.lastName}`;
+      
+      // Bazada xuddi shu raqamli profil borligini tekshiramiz
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('phone', formData.phone)
+        .single();
+
+      if (existing) {
+        // Bor bo'lsa yangilaymiz (Update)
+        await supabase.from('profiles').update({
+          full_name: fullName,
+        }).eq('phone', formData.phone);
+      } else {
+        // Yo'q bo'lsa yangi qator qoshamiz (Insert)
+        // Eslatma: Agar ID auth.users ga bog'langan bo'lsa ForeignKey xatosi berishi mumkin
+        await supabase.from('profiles').insert([{ 
+          phone: formData.phone,
+          full_name: fullName,
+          is_blocked: false
+        }]);
+      }
+    } catch (e) {
+      console.error("Supabase profile save error:", e);
     }
 
     setLocalProfile(formData);
